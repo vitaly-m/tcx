@@ -1,3 +1,6 @@
+use chrono::Date;
+use chrono::DateTime;
+use chrono::Utc;
 use std::io::BufRead;
 use std::str::FromStr;
 
@@ -5,6 +8,12 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 
 use crate::types::BuildType::{Alpha, Beta, Internal, Release};
+
+#[derive(Debug, PartialEq)]
+pub enum SourceType {
+    Application(Application),
+    Device(Device),
+}
 
 /// Identifies a PC software application.
 #[derive(Debug, PartialEq)]
@@ -102,6 +111,679 @@ impl Device {
             version: None,
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TrainingCenterDatabase {
+    pub folders: Option<Folders>,
+    pub activity_list: Option<ActivityList>,
+    pub workout_list: Option<WorkoutList>,
+    pub course_list: Option<CourseList>,
+    pub author: Option<SourceType>,
+}
+
+impl TrainingCenterDatabase {
+    fn new() -> Self {
+        Self {
+            folders: None,
+            activity_list: None,
+            workout_list: None,
+            course_list: None,
+            author: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CourseList {
+    pub cources: Option<Vec<Course>>,
+}
+
+impl CourseList {
+    fn new() -> Self {
+        Self {
+            cources: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Course {
+    pub name: Option<String>,
+    pub laps: Option<Vec<CourseLap>>,
+    pub track_points: Option<Vec<TrackPoint>>,
+    pub notes: Option<String>,
+    pub course_point: Option<CoursePoint>,
+    pub creator: Option<SourceType>,
+}
+
+impl Course {
+    fn new() -> Self {
+        Self {
+            name: None,
+            laps: None,
+            track_points: None,
+            notes: None,
+            course_point: None,
+            creator: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CoursePoint {
+    pub name: Option<String>,
+    pub time: Option<DateTime<Utc>>,
+    pub position: Option<Position>,
+    pub altitude_meters: Option<f64>,
+    pub point_type: Option<CoursePointType>,
+    pub notes: Option<String>,
+}
+
+impl CoursePoint {
+    fn new() -> Self {
+        Self {
+            name: None,
+            time: None,
+            position: None,
+            altitude_meters: None,
+            point_type: None,
+            notes: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CoursePointType {
+    Generic,
+    Summit,
+    Valley,
+    Water,
+    Food,
+    Danger,
+    Left,
+    Right,
+    Straight,
+    FirstAid,
+    Category4,
+    Category3,
+    Category2,
+    Category1,
+    HorsCategory,
+    Sprint,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CourseLap {
+    pub total_time_seconds: Option<f64>,
+    pub distance_meters: Option<f64>,
+    pub begin_position: Option<Position>,
+    pub begin_altitude_meters: Option<f64>,
+    pub end_position: Option<Position>,
+    pub end_altitude_meters: Option<f64>,
+    pub average_heart_rate_bpm: Option<u8>,
+    pub maximum_heart_rate_bpm: Option<u8>,
+    pub intensity: Option<Intensity>,
+    pub cadence: Option<u8>
+}
+
+impl CourseLap {
+    fn new() -> Self {
+        Self {
+            total_time_seconds: None,
+            distance_meters: None,
+            begin_position: None,
+            begin_altitude_meters: None,
+            end_position: None,
+            end_altitude_meters: None,
+            average_heart_rate_bpm: None,
+            maximum_heart_rate_bpm: None,
+            intensity: None,
+            cadence: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WorkoutList {
+    pub workouts: Option<Vec<Workout>>,
+}
+
+impl WorkoutList {
+    fn new() -> Self {
+        Self {
+            workouts: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Workout {
+    pub name: Option<String>,
+    pub steps: Option<Vec<StepType>>,
+    pub scheduled_on: Option<Date<Utc>>,
+    pub notes: Option<String>,
+    pub creator: Option<SourceType>,
+    pub sport: Option<Sport>,
+}
+
+impl Workout {
+    fn new() -> Self {
+        Self {
+            name: None,
+            steps: None,
+            scheduled_on: None,
+            notes: None,
+            creator: None,
+            sport: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum StepType {
+    Step(Step),
+    Repeat(Repeat),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Repeat {
+    pub step_id: Option<u8>,
+    pub repetitions: Option<u8>,
+    pub children: Option<Vec<StepType>>,
+}
+
+impl Repeat {
+    fn new() -> Self {
+        Self {
+            step_id: None,
+            repetitions: None,
+            children: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Step {
+    pub step_id: Option<u8>,
+    pub name: Option<String>,
+    pub duration: Option<Duration>,
+    pub intensity: Option<Intensity>,
+    pub target: Option<Target>,
+}
+
+impl Step {
+    fn new() -> Self {
+        Self {
+            step_id: None,
+            name: None,
+            duration: None,
+            intensity: None,
+            target: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Target {
+    Speed(Zone),
+    HeartRate(Zone),
+    Cadence(Cadence),
+    None,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Cadence {
+    pub low: Option<f64>,
+    pub high: Option<f64>,
+}
+
+impl Cadence {
+    fn new() -> Self {
+        Self {
+            low: None,
+            high: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Zone {
+    PredefinedSpeedZone(u8),
+    CustomSpeedZone(CustomSpeedZone),
+    PredefinedHeartRateZone(u8),
+    CustomHeartRateZone(CustomHeartRateZone),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CustomHeartRateZone {
+    pub low: Option<u8>,
+    pub high: Option<u8>,
+}
+
+impl CustomHeartRateZone {
+    fn new() -> Self {
+        Self {
+            low: None,
+            high: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CustomSpeedZone {
+    pub view_as: Option<SpeedType>,
+    pub low_in_meters_per_second: Option<f64>,
+    pub high_in_meters_per_second: Option<f64>,
+}
+
+impl CustomSpeedZone {
+    fn new() -> Self {
+        Self {
+            view_as: None,
+            low_in_meters_per_second: None,
+            high_in_meters_per_second: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SpeedType {
+    Pace,
+    Speed,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Duration {
+    Time(u16),
+    Distance(u16),
+    HeartRateAbove(u8),
+    HeartRateBelow(u8),
+    CaloriesBurned(u16),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ActivityList {
+    pub activities: Option<Vec<Activity>>,
+    pub multi_sport_sessions: Option<Vec<MultiSportSession>>,
+}
+
+impl ActivityList {
+    fn new() -> Self {
+        Self {
+            activities: None,
+            multi_sport_sessions: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MultiSportSession {
+    pub id: Option<DateTime<Utc>>,
+    pub sports: Option<Vec<MultiActivity>>,
+    pub notes: Option<String>,
+}
+
+impl MultiSportSession {
+    fn new() -> Self {
+        Self {
+            id: None,
+            sports: None,
+            notes: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MultiActivity {
+    pub transition: Option<ActivityLap>,
+    pub activity: Option<Activity>,
+}
+
+impl MultiActivity {
+    fn new() -> Self {
+        Self {
+            transition: None,
+            activity: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Folders {
+    pub history: Option<History>,
+    pub workouts: Option<Workouts>,
+    pub courses: Option<Courses>,
+}
+
+impl Folders {
+    fn new() -> Self {
+        Self {
+            history: None,
+            workouts: None,
+            courses: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Courses {
+    pub course_folder: Option<CourseFolder>,
+}
+
+impl Courses {
+    fn new() -> Self {
+        Self {
+            course_folder: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CourseFolder {
+    pub folders: Option<Vec<CourseFolder>>,
+    pub course_name_refs: Option<Vec<String>>,
+    pub notes: Option<String>,
+    pub name: Option<String>,
+}
+
+impl CourseFolder {
+    fn new() -> Self {
+        Self {
+            folders: None,
+            course_name_refs: None,
+            notes: None,
+            name: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Workouts {
+    pub running: Option<WorkoutFolder>,
+    pub biking: Option<WorkoutFolder>,
+    pub other: Option<WorkoutFolder>,
+}
+
+impl Workouts {
+    fn new() -> Self {
+        Self {
+            running: None,
+            biking: None,
+            other: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WorkoutFolder {
+    pub folders: Option<Vec<WorkoutFolder>>,
+    pub workout_name_refs: Option<Vec<String>>,
+    pub name: Option<String>,
+}
+
+impl WorkoutFolder {
+    fn new() -> Self {
+        Self {
+            folders: None,
+            workout_name_refs: None,
+            name: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct History {
+    pub running: Option<HistoryFolder>,
+    pub biking: Option<HistoryFolder>,
+    pub other: Option<HistoryFolder>,
+    pub multi_sport: Option<MultiSportFolder>,
+}
+
+impl History {
+    fn new() -> Self {
+        Self {
+            running: None,
+            biking: None,
+            other: None,
+            multi_sport: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MultiSportFolder {
+    pub folders: Option<Vec<MultiSportFolder>>,
+    pub multisport_activity_refs: Option<Vec<DateTime<Utc>>>,
+    pub weeks: Option<Vec<Week>>,
+    pub notes: Option<String>,
+    pub name: Option<String>,
+}
+
+impl MultiSportFolder {
+    fn new() -> Self {
+        Self {
+            folders: None,
+            multisport_activity_refs: None,
+            weeks: None,
+            notes: None,
+            name: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct HistoryFolder {
+    pub folders: Option<Vec<HistoryFolder>>,
+    pub activity_refs: Option<Vec<DateTime<Utc>>>,
+    pub weeks: Option<Vec<Week>>,
+    pub notes: Option<String>,
+    pub name: Option<String>,
+}
+
+impl HistoryFolder {
+    fn new() -> Self {
+        Self {
+            folders: None,
+            activity_refs: None,
+            weeks: None,
+            notes: None,
+            name: None,
+        }
+    }
+}
+
+/// The week is written out only if the notes are present.
+#[derive(Debug, PartialEq)]
+pub struct Week {
+    pub notes: Option<String>,
+    pub start_day: Option<Date<Utc>>,
+}
+
+impl Week {
+    fn new() -> Self {
+        Self {
+            notes: None,
+            start_day: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Activity {
+    pub id: Option<DateTime<Utc>>,
+    pub laps: Option<Vec<ActivityLap>>,
+    pub notes: Option<String>,
+    pub training: Option<Training>,
+    pub creator: Option<SourceType>,
+    pub sport: Option<Sport>,
+}
+
+impl Activity {
+    fn new() -> Self {
+        Self {
+            id: None,
+            laps: None,
+            notes: None,
+            training: None,
+            creator: None,
+            sport: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Training {
+    pub quick_workout_results: Option<QuickWorkout>,
+    pub plan: Option<Plan>,
+    pub virtual_partner: Option<bool>,
+}
+
+impl Training {
+    fn new() -> Self {
+        Self {
+            quick_workout_results: None,
+            plan: None,
+            virtual_partner: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Plan {
+    pub name: Option<String>,
+    pub training_type: Option<TrainingType>,
+    pub interval_workout: Option<bool>,
+}
+
+impl Plan {
+    fn new() -> Self {
+        Self {
+            name: None,
+            training_type: None,
+            interval_workout: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TrainingType {
+    Workout,
+    Course,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct QuickWorkout {
+    pub total_time_seconds: Option<f64>,
+    pub distance_meters: Option<f64>,
+}
+
+impl QuickWorkout {
+    fn new() -> Self {
+        Self {
+            total_time_seconds: None,
+            distance_meters: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ActivityLap {
+    pub total_time_seconds: Option<f64>,
+    pub distance_meters: Option<f64>,
+    pub maximum_speed: Option<f64>,
+    pub calories: Option<u16>,
+    pub average_heart_rate_bpm: Option<u8>,
+    pub maximum_heart_rate_bpm: Option<u8>,
+    pub intensity: Option<Intensity>,
+    pub cadence: Option<u8>,
+    pub trigger_method: Option<TriggerMethod>,
+    pub track_points: Option<Vec<TrackPoint>>,
+}
+
+impl ActivityLap {
+    fn new() -> Self {
+        Self {
+            total_time_seconds: None,
+            distance_meters: None,
+            maximum_speed: None,
+            calories: None,
+            average_heart_rate_bpm: None,
+            maximum_heart_rate_bpm: None,
+            intensity: None,
+            cadence: None,
+            trigger_method: None,
+            track_points: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TrackPoint {
+    pub time: Option<DateTime<Utc>>,
+    pub position: Option<Position>,
+    pub altitude_meters: Option<f64>,
+    pub distance_meters: Option<f64>,
+    pub heart_rate_bpm: Option<u8>,
+    pub cadence: Option<u8>,
+    pub sensor_state: Option<SensorState>,
+}
+
+impl TrackPoint {
+    fn new() -> Self {
+        Self {
+            time: None,
+            position: None,
+            altitude_meters: None,
+            distance_meters: None,
+            heart_rate_bpm: None,
+            cadence: None,
+            sensor_state: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Position {
+    pub latitude_degrees: Option<f64>,
+    pub longitude_degrees: Option<f64>,
+}
+
+impl Position {
+    fn new() -> Self {
+        Self {
+            latitude_degrees: None,
+            longitude_degrees: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SensorState {
+    Present,
+    Absent,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Intensity {
+    Active,
+    Resting,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TriggerMethod {
+    Manual,
+    Distance,
+    Location,
+    Time,
+    HeartRate,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Sport {
+    Running,
+    Biking,
+    Other,
 }
 
 //TODO support abstract source

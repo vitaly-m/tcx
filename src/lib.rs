@@ -1,8 +1,8 @@
-// #![feature(test)]
-//
-// extern crate test;
+#[macro_use]
+extern crate lazy_static;
 
 mod types;
+mod read;
 
 pub fn add_two(a: i32) -> i32 {
     a + 2
@@ -10,7 +10,6 @@ pub fn add_two(a: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

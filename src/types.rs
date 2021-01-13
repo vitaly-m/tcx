@@ -1,8 +1,29 @@
-use chrono::Date;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
+use chrono::{Date, FixedOffset, TimeZone};
 use chrono::DateTime;
 use chrono::Utc;
 use regex::Regex;
+use thiserror::Error;
 use validator::Validate;
+
+#[derive(Error, Debug)]
+pub enum UnknownEnumValueError {
+    TrainingType(String),
+    Sport(String),
+    BuildType(String),
+}
+
+impl Display for UnknownEnumValueError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnknownEnumValueError::TrainingType(t) => write!(f, "unknown {} training type", t),
+            UnknownEnumValueError::Sport(t) => write!(f, "unknown {} sport", t),
+            UnknownEnumValueError::BuildType(t) => write!(f, "unknown {} build type", t),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum SourceType {
@@ -16,6 +37,22 @@ pub enum BuildType {
     Alpha,
     Beta,
     Release,
+}
+
+impl FromStr for BuildType {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Internal" => Ok(BuildType::Internal),
+            "Alpha" => Ok(BuildType::Alpha),
+            "Beta" => Ok(BuildType::Beta),
+            "Release" => Ok(BuildType::Release),
+            _ => {
+                return Err(UnknownEnumValueError::BuildType(s.to_string()));
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -81,6 +118,26 @@ pub enum TrainingType {
     Course,
 }
 
+impl Default for TrainingType {
+    fn default() -> Self {
+        TrainingType::Workout
+    }
+}
+
+impl FromStr for TrainingType {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Workout" => Ok(TrainingType::Workout),
+            "Course" => Ok(TrainingType::Course),
+            _ => {
+                return Err(UnknownEnumValueError::TrainingType(s.to_string()));
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum SensorState {
     Present,
@@ -107,6 +164,21 @@ pub enum Sport {
     Running,
     Biking,
     Other,
+}
+
+impl FromStr for Sport {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Running" => Ok(Sport::Running),
+            "Biking" => Ok(Sport::Biking),
+            "Other" => Ok(Sport::Other),
+            _ => {
+                return Err(UnknownEnumValueError::Sport(s.to_string()));
+            }
+        }
+    }
 }
 
 lazy_static! {
@@ -220,7 +292,7 @@ impl Course {
 #[derive(Debug, PartialEq)]
 pub struct CoursePoint {
     pub name: Option<String>,
-    pub time: Option<DateTime<Utc>>,
+    pub time: Option<DateTime<FixedOffset>>,
     pub position: Option<Position>,
     pub altitude_meters: Option<f64>,
     pub point_type: Option<CoursePointType>,
@@ -390,24 +462,15 @@ impl CustomSpeedZone {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct ActivityList {
-    pub activities: Option<Vec<Activity>>,
-    pub multi_sport_sessions: Option<Vec<MultiSportSession>>,
-}
-
-impl ActivityList {
-    fn new() -> Self {
-        Self {
-            activities: None,
-            multi_sport_sessions: None,
-        }
-    }
+    pub activities: Vec<Activity>,
+    pub multi_sport_sessions: Vec<MultiSportSession>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct MultiSportSession {
-    pub id: Option<DateTime<Utc>>,
+    pub id: Option<DateTime<FixedOffset>>,
     pub sports: Option<Vec<MultiActivity>>,
     pub notes: Option<String>,
 }
@@ -542,7 +605,7 @@ impl History {
 #[derive(Debug, PartialEq)]
 pub struct MultiSportFolder {
     pub folders: Option<Vec<MultiSportFolder>>,
-    pub multisport_activity_refs: Option<Vec<DateTime<Utc>>>,
+    pub multisport_activity_refs: Option<Vec<DateTime<FixedOffset>>>,
     pub weeks: Option<Vec<Week>>,
     pub notes: Option<String>,
     pub name: Option<String>,
@@ -563,7 +626,7 @@ impl MultiSportFolder {
 #[derive(Debug, PartialEq)]
 pub struct HistoryFolder {
     pub folders: Option<Vec<HistoryFolder>>,
-    pub activity_refs: Option<Vec<DateTime<Utc>>>,
+    pub activity_refs: Option<Vec<DateTime<FixedOffset>>>,
     pub weeks: Option<Vec<Week>>,
     pub notes: Option<String>,
     pub name: Option<String>,
@@ -599,74 +662,48 @@ impl Week {
 
 #[derive(Debug, PartialEq)]
 pub struct Activity {
-    pub id: Option<DateTime<Utc>>,
-    pub laps: Option<Vec<ActivityLap>>,
+    pub id: DateTime<FixedOffset>,
+    pub laps: Vec<ActivityLap>,
     pub notes: Option<String>,
     pub training: Option<Training>,
     pub creator: Option<SourceType>,
-    pub sport: Option<Sport>,
+    pub sport: Sport,
 }
 
-impl Activity {
-    fn new() -> Self {
+impl Default for Activity {
+    fn default() -> Self {
         Self {
-            id: None,
-            laps: None,
+            id: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
+
+            laps: Vec::default(),
             notes: None,
             training: None,
             creator: None,
-            sport: None,
+            sport: Sport::Running,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct Training {
     pub quick_workout_results: Option<QuickWorkout>,
     pub plan: Option<Plan>,
-    pub virtual_partner: Option<bool>,
+    pub virtual_partner: bool,
 }
 
-impl Training {
-    fn new() -> Self {
-        Self {
-            quick_workout_results: None,
-            plan: None,
-            virtual_partner: None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Validate)]
 pub struct Plan {
+    /// Non empty string up to 15 bytes
+    #[validate(length(min = 1, max = 15))]
     pub name: Option<String>,
-    pub training_type: Option<TrainingType>,
-    pub interval_workout: Option<bool>,
+    pub training_type: TrainingType,
+    pub interval_workout: bool,
 }
 
-impl Plan {
-    fn new() -> Self {
-        Self {
-            name: None,
-            training_type: None,
-            interval_workout: None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct QuickWorkout {
-    pub total_time_seconds: Option<f64>,
-    pub distance_meters: Option<f64>,
-}
-
-impl QuickWorkout {
-    fn new() -> Self {
-        Self {
-            total_time_seconds: None,
-            distance_meters: None,
-        }
-    }
+    pub total_time_seconds: f64,
+    pub distance_meters: f64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -702,7 +739,7 @@ impl ActivityLap {
 
 #[derive(Debug, PartialEq)]
 pub struct TrackPoint {
-    pub time: Option<DateTime<Utc>>,
+    pub time: Option<DateTime<FixedOffset>>,
     pub position: Option<Position>,
     pub altitude_meters: Option<f64>,
     pub distance_meters: Option<f64>,

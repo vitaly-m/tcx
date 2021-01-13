@@ -1,6 +1,6 @@
 use std::io::BufRead;
-use std::num::ParseIntError;
-use std::str::FromStr;
+use std::num::{ParseFloatError, ParseIntError};
+use std::str::{FromStr, ParseBoolError};
 
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
@@ -15,10 +15,16 @@ pub enum ReadError {
     XmlReadError(#[from] quick_xml::Error),
     #[error("error while parsing to int '{0}'")]
     ParseIntError(#[from] ParseIntError),
+    #[error("error while parsing to float '{0}'")]
+    ParseFloatError(#[from] ParseFloatError),
+    #[error("error while parsing to bool '{0}'")]
+    ParseBoolError(#[from] ParseBoolError),
     #[error("type not defined, but expected")]
     TypeNotDefined,
-    #[error("unknown '{0}' value '{1}'")]
-    UnknownEnumValue(&'static str, String),
+    #[error("error parsing enum value '{0}'")]
+    UnknownEnumValue(#[from] UnknownEnumValueError),
+    #[error("error while parsing to date '{0}'")]
+    ParseDateError(#[from] chrono::ParseError),
 }
 
 fn read_training_center<B: BufRead>(
@@ -45,6 +51,9 @@ fn read_training_center<B: BufRead>(
                         tc_db.author = Some(SourceType::Device(read_device(reader, b"Author")?));
                     }
                 }
+                b"Activities" => {
+                    tc_db.activity_list = Some(read_activity_list(reader, b"Activities")?)
+                }
                 _ => {}
             },
             Ok(Event::End(ref e)) => match e.name() {
@@ -67,6 +76,200 @@ fn read_type<B: BufRead>(reader: &Reader<B>, e: &BytesStart) -> Result<String, R
         None => Err(ReadError::TypeNotDefined),
         Some(ar) => Ok(ar?.unescape_and_decode_value(reader)?),
     }
+}
+
+fn read_activity_list<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+) -> Result<ActivityList, ReadError> {
+    let mut buf = Vec::new();
+    let mut al = ActivityList::default();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"Activity" => al.activities.push(read_activity(reader, b"Activity")?),
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            }
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(al)
+}
+
+fn read_activity<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+) -> Result<Activity, ReadError> {
+    let mut buf = Vec::new();
+    let mut activity = Activity::default();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"Id" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        activity.id = chrono::DateTime::parse_from_rfc3339(
+                            t.unescape_and_decode(&reader)?.as_str(),
+                        )?;
+                    }
+                }
+                b"Lap" => {
+                    //TODO read laps
+                }
+                b"Notes" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        activity.notes = t.unescape_and_decode(&reader).ok();
+                    }
+                }
+                b"Training" => {
+                    activity.training = Some(read_training(reader, b"Training")?);
+                }
+                b"Creator" => {
+                    let e_type = read_type(reader, e)?;
+                    if e_type.as_str() == "Application_t" {
+                        activity.creator = Some(SourceType::Application(read_application(
+                            reader, b"Creator",
+                        )?));
+                    } else if e_type.as_str() == "Device_t" {
+                        activity.creator =
+                            Some(SourceType::Device(read_device(reader, b"Creator")?));
+                    }
+                }
+                b"Sport" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        activity.sport = Sport::from_str(&t.unescape_and_decode(&reader)?)?;
+                    }
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            }
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(activity)
+}
+
+fn read_plan<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+    plan_element: &BytesStart,
+) -> Result<Plan, ReadError> {
+    let mut buf = Vec::new();
+    let mut plan = Plan::default();
+    for ar in plan_element.attributes() {
+        if let Ok(a) = ar {
+            match a.key {
+                b"Type" => {
+                    plan.training_type =
+                        TrainingType::from_str(&a.unescape_and_decode_value(reader)?)?;
+                }
+                b"IntervalWorkout" => {
+                    plan.interval_workout = bool::from_str(&a.unescape_and_decode_value(reader)?)?;
+                }
+                _ => (),
+            }
+        }
+    }
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"Name" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        plan.name = t.unescape_and_decode(reader).ok();
+                    }
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            }
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(plan)
+}
+
+fn read_quick_workout<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+) -> Result<QuickWorkout, ReadError> {
+    let mut buf = Vec::new();
+    let mut quick_workout = QuickWorkout::default();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"TotalTimeSeconds" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        quick_workout.total_time_seconds =
+                            f64::from_str(&t.unescape_and_decode(reader)?)?;
+                    }
+                }
+                b"DistanceMeters" => {
+                    if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
+                        quick_workout.distance_meters =
+                            f64::from_str(&t.unescape_and_decode(reader)?)?;
+                    }
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            }
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(quick_workout)
+}
+
+fn read_training<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+) -> Result<Training, ReadError> {
+    let mut buf = Vec::new();
+    let mut training = Training::default();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"QuickWorkoutResults" => {
+                    training.quick_workout_results =
+                        Some(read_quick_workout(reader, b"QuickWorkoutResults")?);
+                }
+                b"Plan" => {
+                    training.plan = Some(read_plan(reader, b"Plan", e)?);
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            }
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(training)
 }
 
 fn read_device<B: BufRead>(reader: &mut Reader<B>, close_tag: &[u8]) -> Result<Device, ReadError> {
@@ -103,6 +306,7 @@ fn read_device<B: BufRead>(reader: &mut Reader<B>, close_tag: &[u8]) -> Result<D
             Err(e) => return Err(ReadError::XmlReadError(e)),
             _ => (),
         }
+        buf.clear();
     }
     Ok(d)
 }
@@ -168,18 +372,8 @@ fn read_build<B: BufRead>(reader: &mut Reader<B>) -> Result<Build, ReadError> {
                 }
                 b"Type" => {
                     if let Ok(Event::Text(ref t)) = reader.read_event(&mut buf) {
-                        match t.unescape_and_decode(&reader)?.as_str() {
-                            "Internal" => build.build_type = Some(BuildType::Internal),
-                            "Alpha" => build.build_type = Some(BuildType::Alpha),
-                            "Beta" => build.build_type = Some(BuildType::Beta),
-                            "Release" => build.build_type = Some(BuildType::Release),
-                            _ => {
-                                return Err(ReadError::UnknownEnumValue(
-                                    "build type",
-                                    t.unescape_and_decode(&reader)?,
-                                ));
-                            }
-                        }
+                        build.build_type =
+                            Some(BuildType::from_str(&t.unescape_and_decode(&reader)?)?);
                     }
                 }
                 _ => (),
@@ -238,6 +432,7 @@ fn read_version<B: BufRead>(reader: &mut Reader<B>) -> Result<Version, ReadError
 
 #[cfg(test)]
 mod tests {
+    use chrono::{FixedOffset, TimeZone};
     use validator::ValidationErrors;
 
     use super::*;
@@ -287,6 +482,66 @@ mod tests {
             }),
             tc.author.unwrap()
         )
+    }
+
+    #[test]
+    fn read_activities_test() {
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let mut reader = Reader::from_reader(tcx_bytes);
+        let tc = read_training_center(&mut reader).unwrap();
+        assert_eq!(1, tc.activity_list.as_ref().unwrap().activities.len());
+        assert_eq!(
+            0,
+            tc.activity_list
+                .as_ref()
+                .unwrap()
+                .multi_sport_sessions
+                .len()
+        );
+    }
+
+    #[test]
+    fn read_activity_test() {
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let mut reader = Reader::from_reader(tcx_bytes);
+        let tc = read_training_center(&mut reader).unwrap();
+        let activity = tc
+            .activity_list
+            .unwrap()
+            .activities
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(Sport::Running, activity.sport);
+        assert_eq!(
+            FixedOffset::east(0)
+                .ymd(2020, 12, 28)
+                .and_hms_milli(13, 36, 16, 453),
+            activity.id
+        );
+        assert_eq!(
+            SourceType::Device(Device {
+                name: String::from("Polar Vantage V"),
+                unit_id: 0,
+                product_id: 203,
+                version: Version {
+                    version_major: 5,
+                    version_minor: 1,
+                    build_major: Some(0),
+                    build_minor: Some(0),
+                },
+            }),
+            activity.creator.unwrap()
+        );
+        assert_eq!(Training {
+            quick_workout_results: None,
+            plan: Some(Plan {
+                interval_workout: false,
+                training_type: TrainingType::Workout,
+                name: None,
+            }),
+            virtual_partner: false,
+        }, activity.training.unwrap());
     }
 
     #[test]

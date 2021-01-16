@@ -118,7 +118,16 @@ macro_rules! opt_read_text_as_date {
     };
 }
 
-fn read_training_center<B: BufRead>(
+/// Read the content of TCX xml data into TrainingCenterDatabase structure
+/// ```
+/// use quick_xml::Reader;
+/// use tcx::read_training_center;
+///
+/// let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+/// let mut reader = Reader::from_reader(tcx_bytes);
+/// assert_eq!(true, read_training_center(&mut reader).is_ok());
+/// ```
+pub fn read_training_center<B: BufRead>(
     reader: &mut Reader<B>,
 ) -> Result<TrainingCenterDatabase, ReadError> {
     let mut buf = Vec::new();
@@ -698,7 +707,7 @@ mod tests {
                 },
             }),
             tc.author.unwrap()
-        )
+        );
     }
 
     #[test]

@@ -13,14 +13,20 @@ pub enum UnknownEnumValueError {
     TrainingType(String),
     Sport(String),
     BuildType(String),
+    Intensity(String),
+    TriggerMethod(String),
+    SensorState(String),
 }
 
 impl Display for UnknownEnumValueError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnknownEnumValueError::TrainingType(t) => write!(f, "unknown {} training type", t),
-            UnknownEnumValueError::Sport(t) => write!(f, "unknown {} sport", t),
-            UnknownEnumValueError::BuildType(t) => write!(f, "unknown {} build type", t),
+            UnknownEnumValueError::TrainingType(t) => write!(f, "unknown '{}' training type", t),
+            UnknownEnumValueError::Sport(t) => write!(f, "unknown '{}' sport", t),
+            UnknownEnumValueError::BuildType(t) => write!(f, "unknown '{}' build type", t),
+            UnknownEnumValueError::Intensity(t) => write!(f, "unknown '{}' intensity", t),
+            UnknownEnumValueError::TriggerMethod(t) => write!(f, "unknown '{}' trigger method", t),
+            UnknownEnumValueError::SensorState(t) => write!(f, "unknown '{}' sensor state", t),
         }
     }
 }
@@ -144,10 +150,44 @@ pub enum SensorState {
     Absent,
 }
 
+impl Default for SensorState {
+    fn default() -> Self {
+        Self::Present
+    }
+}
+
+impl FromStr for SensorState {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Present" => Ok(Self::Present),
+            "Absent" => Ok(Self::Absent),
+            _ => {
+                return Err(UnknownEnumValueError::SensorState(s.to_string()));
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Intensity {
     Active,
     Resting,
+}
+
+impl FromStr for Intensity {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Active" => Ok(Self::Active),
+            "Resting" => Ok(Self::Resting),
+            _ => {
+                return Err(UnknownEnumValueError::Intensity(s.to_string()));
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -157,6 +197,23 @@ pub enum TriggerMethod {
     Location,
     Time,
     HeartRate,
+}
+
+impl FromStr for TriggerMethod {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Manual" => Ok(Self::Manual),
+            "Distance" => Ok(Self::Distance),
+            "Location" => Ok(Self::Location),
+            "Time" => Ok(Self::Time),
+            "HeartRate" => Ok(Self::HeartRate),
+            _ => {
+                return Err(UnknownEnumValueError::TriggerMethod(s.to_string()));
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -312,7 +369,7 @@ impl CoursePoint {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Validate)]
 pub struct CourseLap {
     pub total_time_seconds: Option<f64>,
     pub distance_meters: Option<f64>,
@@ -323,6 +380,7 @@ pub struct CourseLap {
     pub average_heart_rate_bpm: Option<u8>,
     pub maximum_heart_rate_bpm: Option<u8>,
     pub intensity: Option<Intensity>,
+    #[validate(range(max = 254))]
     pub cadence: Option<u8>,
 }
 
@@ -706,52 +764,60 @@ pub struct QuickWorkout {
     pub distance_meters: f64,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Validate)]
 pub struct ActivityLap {
-    pub total_time_seconds: Option<f64>,
-    pub distance_meters: Option<f64>,
+    pub total_time_seconds: f64,
+    pub distance_meters: f64,
     pub maximum_speed: Option<f64>,
-    pub calories: Option<u16>,
+    pub calories: u16,
+    #[validate(range(min = 1))]
     pub average_heart_rate_bpm: Option<u8>,
+    #[validate(range(min = 1))]
     pub maximum_heart_rate_bpm: Option<u8>,
-    pub intensity: Option<Intensity>,
+    pub intensity: Intensity,
+    #[validate(range(max = 254))]
     pub cadence: Option<u8>,
-    pub trigger_method: Option<TriggerMethod>,
-    pub track_points: Option<Vec<TrackPoint>>,
+    pub trigger_method: TriggerMethod,
+    pub track_points: Vec<TrackPoint>,
+    pub notes: Option<String>,
+    pub start_time: DateTime<FixedOffset>,
 }
 
-impl ActivityLap {
-    fn new() -> Self {
+impl Default for ActivityLap {
+    fn default() -> Self {
         Self {
-            total_time_seconds: None,
-            distance_meters: None,
+            total_time_seconds: 0.0,
+            distance_meters: 0.0,
             maximum_speed: None,
-            calories: None,
+            calories: 0,
             average_heart_rate_bpm: None,
             maximum_heart_rate_bpm: None,
-            intensity: None,
+            intensity: Intensity::Active,
             cadence: None,
-            trigger_method: None,
-            track_points: None,
+            trigger_method: TriggerMethod::Manual,
+            track_points: Vec::default(),
+            notes: None,
+            start_time: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Validate)]
 pub struct TrackPoint {
-    pub time: Option<DateTime<FixedOffset>>,
+    pub time: DateTime<FixedOffset>,
     pub position: Option<Position>,
     pub altitude_meters: Option<f64>,
     pub distance_meters: Option<f64>,
     pub heart_rate_bpm: Option<u8>,
+    #[validate(range(max = 254))]
     pub cadence: Option<u8>,
     pub sensor_state: Option<SensorState>,
 }
 
-impl TrackPoint {
-    fn new() -> Self {
+impl Default for TrackPoint {
+    fn default() -> Self {
         Self {
-            time: None,
+            time: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
             position: None,
             altitude_meters: None,
             distance_meters: None,
@@ -762,17 +828,10 @@ impl TrackPoint {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Validate)]
 pub struct Position {
-    pub latitude_degrees: Option<f64>,
-    pub longitude_degrees: Option<f64>,
-}
-
-impl Position {
-    fn new() -> Self {
-        Self {
-            latitude_degrees: None,
-            longitude_degrees: None,
-        }
-    }
+    #[validate(range(min = - 90.0, max = 90.0))]
+    pub latitude_degrees: f64,
+    #[validate(range(min = - 180.0, max = 180.0))]
+    pub longitude_degrees: f64,
 }

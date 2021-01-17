@@ -307,6 +307,9 @@ fn read_activity_lap<B: BufRead>(
                 b"Notes" => {
                     opt_read_text!(a_lap.notes, reader, buf);
                 }
+                b"LX" => {
+                    a_lap.extension = Some(read_activity_lap_extension(reader, b"LX")?);
+                }
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
@@ -376,6 +379,9 @@ fn read_track_point<B: BufRead>(
                 }
                 b"SensorState" => {
                     opt_read_text_as!(tp.sensor_state, reader, buf, SensorState);
+                }
+                b"TPX" => {
+                    tp.extension = Some(read_activity_track_point_extension(reader, b"TPX", e)?);
                 }
                 _ => (),
             },
@@ -656,6 +662,96 @@ fn read_version<B: BufRead>(reader: &mut Reader<B>) -> Result<Version, ReadError
     Ok(version)
 }
 
+fn read_activity_track_point_extension<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+    tpx_element: &BytesStart,
+) -> Result<ActivityTrackPointExtension, ReadError> {
+    let mut buf = Vec::new();
+    let mut ate = ActivityTrackPointExtension::default();
+    for ar in tpx_element.attributes() {
+        if let Ok(a) = ar {
+            match a.key {
+                b"CadenceSensor" => {
+                    ate.cadence_sensor =
+                        Some(CadenceSensorType::from_str(&a.unescape_and_decode_value(reader)?)?);
+                }
+                _ => (),
+            }
+        }
+    }
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"Speed" => {
+                    opt_read_text_as!(ate.speed, reader, buf, f64);
+                }
+                b"RunCadence" => {
+                    opt_read_text_as!(ate.run_cadence, reader, buf, u8);
+                }
+                b"Watts" => {
+                    opt_read_text_as!(ate.watts, reader, buf, u16);
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            },
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(ate)
+}
+
+fn read_activity_lap_extension<B: BufRead>(
+    reader: &mut Reader<B>,
+    close_tag: &[u8],
+) -> Result<ActivityLapExtension, ReadError> {
+    let mut buf = Vec::new();
+    let mut ate = ActivityLapExtension::default();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name() {
+                b"AvgSpeed" => {
+                    opt_read_text_as!(ate.avg_speed, reader, buf, f64);
+                }
+                b"MaxBikeCadence" => {
+                    opt_read_text_as!(ate.max_bike_cadence, reader, buf, u8);
+                }
+                b"AvgRunCadence" => {
+                    opt_read_text_as!(ate.avg_run_cadence, reader, buf, u8);
+                }
+                b"MaxRunCadence" => {
+                    opt_read_text_as!(ate.max_run_cadence, reader, buf, u8);
+                }
+                b"Steps" => {
+                    opt_read_text_as!(ate.steps, reader, buf, u16);
+                }
+                b"AvgWatts" => {
+                    opt_read_text_as!(ate.avg_watts, reader, buf, u16);
+                }
+                b"MaxWatts" => {
+                    opt_read_text_as!(ate.max_watts, reader, buf, u16);
+                }
+                _ => (),
+            },
+            Ok(Event::End(ref e)) => {
+                if e.name() == close_tag {
+                    break;
+                }
+            },
+            Err(e) => return Err(ReadError::XmlReadError(e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+    Ok(ate)
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{FixedOffset, TimeZone};
@@ -799,6 +895,9 @@ mod tests {
         assert_eq!(TriggerMethod::Distance, lap.trigger_method);
         assert_eq!(true, lap.validate().is_ok());
         assert_eq!(525, lap.track_points.len());
+        assert_eq!(Some(1.9050631258222792), lap.extension.as_ref().unwrap().avg_speed);
+        assert_eq!(Some(210), lap.extension.as_ref().unwrap().avg_watts);
+        assert_eq!(Some(262), lap.extension.as_ref().unwrap().max_watts);
     }
 
     #[test]
@@ -840,6 +939,7 @@ mod tests {
         assert_eq!(Some(68), tp.heart_rate_bpm);
         assert_eq!(Some(0), tp.cadence);
         assert_eq!(Some(SensorState::Present), tp.sensor_state);
+        assert_eq!(Some(98), tp.extension.unwrap().watts);
     }
 
     #[test]

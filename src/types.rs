@@ -16,6 +16,7 @@ pub enum UnknownEnumValueError {
     Intensity(String),
     TriggerMethod(String),
     SensorState(String),
+    CadenceSensorType(String),
 }
 
 impl Display for UnknownEnumValueError {
@@ -27,6 +28,7 @@ impl Display for UnknownEnumValueError {
             UnknownEnumValueError::Intensity(t) => write!(f, "unknown '{}' intensity", t),
             UnknownEnumValueError::TriggerMethod(t) => write!(f, "unknown '{}' trigger method", t),
             UnknownEnumValueError::SensorState(t) => write!(f, "unknown '{}' sensor state", t),
+            UnknownEnumValueError::CadenceSensorType(t) => { write!(f, "unknown '{}' cadence sensor type", t) },
         }
     }
 }
@@ -781,6 +783,7 @@ pub struct ActivityLap {
     pub track_points: Vec<TrackPoint>,
     pub notes: Option<String>,
     pub start_time: DateTime<FixedOffset>,
+    pub extension: Option<ActivityLapExtension>,
 }
 
 impl Default for ActivityLap {
@@ -798,6 +801,7 @@ impl Default for ActivityLap {
             track_points: Vec::default(),
             notes: None,
             start_time: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
+            extension: None,
         }
     }
 }
@@ -812,6 +816,7 @@ pub struct TrackPoint {
     #[validate(range(max = 254))]
     pub cadence: Option<u8>,
     pub sensor_state: Option<SensorState>,
+    pub extension: Option<ActivityTrackPointExtension>,
 }
 
 impl Default for TrackPoint {
@@ -824,6 +829,7 @@ impl Default for TrackPoint {
             heart_rate_bpm: None,
             cadence: None,
             sensor_state: None,
+            extension: None,
         }
     }
 }
@@ -834,4 +840,49 @@ pub struct Position {
     pub latitude_degrees: f64,
     #[validate(range(min = - 180.0, max = 180.0))]
     pub longitude_degrees: f64,
+}
+
+// Activity Extensions
+
+#[derive(Debug, PartialEq)]
+pub enum CadenceSensorType {
+    Footpod,
+    Bike,
+}
+
+impl FromStr for CadenceSensorType {
+    type Err = UnknownEnumValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Footpod" => Ok(Self::Footpod),
+            "Bike" => Ok(Self::Bike),
+            _ => {
+                return Err(UnknownEnumValueError::CadenceSensorType(s.to_string()));
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Validate)]
+pub struct ActivityTrackPointExtension {
+    pub speed: Option<f64>,
+    #[validate(range(max = 254))]
+    pub run_cadence: Option<u8>,
+    pub watts: Option<u16>,
+    pub cadence_sensor: Option<CadenceSensorType>,
+}
+
+#[derive(Debug, PartialEq, Default, Validate)]
+pub struct ActivityLapExtension {
+    pub avg_speed: Option<f64>,
+    #[validate(range(max = 254))]
+    pub max_bike_cadence: Option<u8>,
+    #[validate(range(max = 254))]
+    pub avg_run_cadence: Option<u8>,
+    #[validate(range(max = 254))]
+    pub max_run_cadence: Option<u8>,
+    pub steps: Option<u16>,
+    pub avg_watts: Option<u16>,
+    pub max_watts: Option<u16>,
 }

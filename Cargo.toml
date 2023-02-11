@@ -7,9 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quick-xml = "0.20"
-chrono = "0.4.19"
-validator = { version = "0.12", features = ["derive"] }
+quick-xml = "0.27"
+chrono = "0.4.23"
+validator = { version = "0.16", features = ["derive"] }
 lazy_static = "1.4.0"
 regex = "1"
 thiserror = "1.0"

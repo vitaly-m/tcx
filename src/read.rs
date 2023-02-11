@@ -3,10 +3,10 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::str::{FromStr, ParseBoolError};
 
 use chrono::DateTime;
+use quick_xml::events::attributes::AttrError;
 use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
+use quick_xml::reader::Reader;
 use thiserror::Error;
-use validator::Validate;
 
 use crate::types::*;
 
@@ -26,38 +26,20 @@ pub enum ReadError {
     UnknownEnumValue(#[from] UnknownEnumValueError),
     #[error("error while parsing to date '{0}'")]
     ParseDateError(#[from] chrono::ParseError),
-}
-
-macro_rules! must_read_value_as {
-    ($to: tt. $attr:tt, $r: tt, $b: tt, $ft:ty) => {{
-        loop {
-            match $r.read_event(&mut $b) {
-                Ok(Event::Start(ref e)) => match e.name() {
-                    b"Value" => must_read_text_as!($to.$attr, $r, $b, $ft),
-                    _ => (),
-                },
-                Ok(Event::End(ref e)) => {
-                    if e.name() == b"Value" {
-                        break;
-                    }
-                }
-                Err(e) => return Err(ReadError::XmlReadError(e)),
-                _ => (),
-            }
-        }
-    }};
+    #[error("error parsing attribute '{0}'")]
+    XmlAttrError(#[from] AttrError),
 }
 
 macro_rules! opt_read_value_as {
     ($to: tt. $attr:tt, $r: tt, $b: tt, $ft:ty) => {{
         loop {
-            match $r.read_event(&mut $b) {
-                Ok(Event::Start(ref e)) => match e.name() {
+            match $r.read_event_into(&mut $b) {
+                Ok(Event::Start(ref e)) => match e.name().into_inner() {
                     b"Value" => opt_read_text_as!($to.$attr, $r, $b, $ft),
                     _ => (),
                 },
                 Ok(Event::End(ref e)) => {
-                    if e.name() == b"Value" {
+                    if e.name().into_inner() == b"Value" {
                         break;
                     }
                 }
@@ -70,50 +52,40 @@ macro_rules! opt_read_value_as {
 
 macro_rules! must_read_text_as {
     ($to: tt. $attr:tt, $r: tt, $b: tt, $ft: ty) => {{
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = <$ft>::from_str(&t.unescape_and_decode($r)?)?;
+        if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
+            $to.$attr = <$ft>::from_str(&t.unescape()?.into_owned())?;
         }
     }};
 }
 
 macro_rules! opt_read_text_as {
     ($to: tt. $attr:tt, $r: tt, $b: tt, $ft: ty) => {{
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = Some(<$ft>::from_str(&t.unescape_and_decode($r)?)?);
+        if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
+            $to.$attr = Some(<$ft>::from_str(&t.unescape()?.into_owned())?);
         }
     }};
 }
 
 macro_rules! must_read_text {
     ($to: tt. $attr:tt, $r: tt, $b: tt) => {{
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = t.unescape_and_decode($r)?;
+        if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
+            $to.$attr = t.unescape()?.into_owned();
         }
     }};
 }
 
 macro_rules! opt_read_text {
     ($to: tt. $attr:tt, $r: tt, $b: tt) => {{
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = Some(t.unescape_and_decode($r)?);
+        if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
+            $to.$attr = Some(t.unescape()?.into_owned());
         }
     }};
 }
 
 macro_rules! must_read_text_as_date {
     ($to: tt. $attr:tt, $r: tt, $b: tt) => {
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = chrono::DateTime::parse_from_rfc3339(t.unescape_and_decode(&$r)?.as_str())?;
-        }
-    };
-}
-
-macro_rules! opt_read_text_as_date {
-    ($to: tt. $attr:tt, $r: tt, $b: tt) => {
-        if let Ok(Event::Text(ref t)) = $r.read_event(&mut $b) {
-            $to.$attr = Some(chrono::DateTime::parse_from_rfc3339(
-                t.unescape_and_decode(&$r)?.as_str(),
-            )?);
+        if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
+            $to.$attr = chrono::DateTime::parse_from_rfc3339(t.unescape()?.into_owned().as_str())?.into();
         }
     };
 }
@@ -130,10 +102,10 @@ pub fn read_training_center<B: BufRead>(
         author: None,
     };
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Author" => {
-                    let e_type = read_type(reader, e)?;
+                    let e_type = read_type(e)?;
                     if e_type.as_str() == "Application_t" {
                         tc_db.author = Some(SourceType::Application(read_application(
                             reader, b"Author",
@@ -147,7 +119,7 @@ pub fn read_training_center<B: BufRead>(
                 }
                 _ => {}
             },
-            Ok(Event::End(ref e)) => match e.name() {
+            Ok(Event::End(ref e)) => match e.name().into_inner() {
                 b"TrainingCenterDatabase" => break,
                 _ => {}
             },
@@ -158,14 +130,14 @@ pub fn read_training_center<B: BufRead>(
     Ok(tc_db)
 }
 
-fn read_type<B: BufRead>(reader: &Reader<B>, e: &BytesStart) -> Result<String, ReadError> {
+fn read_type(e: &BytesStart) -> Result<String, ReadError> {
     match e
         .attributes()
-        .filter(|a| a.is_ok() && a.as_ref().unwrap().key == b"xsi:type")
+        .filter(|a| a.is_ok() && a.as_ref().unwrap().key.into_inner() == b"xsi:type")
         .next()
     {
         None => Err(ReadError::TypeNotDefined),
-        Some(ar) => Ok(ar?.unescape_and_decode_value(reader)?),
+        Some(ar) => Ok(ar?.unescape_value()?.into_owned()),
     }
 }
 
@@ -176,13 +148,13 @@ fn read_activity_list<B: BufRead>(
     let mut buf = Vec::new();
     let mut al = ActivityList::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Activity" => al.activities.push(read_activity(reader, b"Activity")?),
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -201,8 +173,8 @@ fn read_activity<B: BufRead>(
     let mut buf = Vec::new();
     let mut activity = Activity::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Id" => {
                     must_read_text_as_date!(activity.id, reader, buf);
                 }
@@ -216,7 +188,7 @@ fn read_activity<B: BufRead>(
                     activity.training = Some(read_training(reader, b"Training")?);
                 }
                 b"Creator" => {
-                    let e_type = read_type(reader, e)?;
+                    let e_type = read_type(e)?;
                     if e_type.as_str() == "Application_t" {
                         activity.creator = Some(SourceType::Application(read_application(
                             reader, b"Creator",
@@ -232,7 +204,7 @@ fn read_activity<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -253,18 +225,18 @@ fn read_activity_lap<B: BufRead>(
     let mut a_lap = ActivityLap::default();
     for ar in lap_element.attributes() {
         if let Ok(a) = ar {
-            match a.key {
+            match a.key.into_inner() {
                 b"StartTime" => {
                     a_lap.start_time =
-                        DateTime::parse_from_rfc3339(&a.unescape_and_decode_value(reader)?)?;
+                        DateTime::parse_from_rfc3339(&a.unescape_value()?.to_owned())?.into();
                 }
                 _ => (),
             }
         }
     }
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"TotalTimeSeconds" => {
                     must_read_text_as!(a_lap.total_time_seconds, reader, buf, f64);
                 }
@@ -304,7 +276,7 @@ fn read_activity_lap<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -323,13 +295,13 @@ fn read_track<B: BufRead>(
     let mut buf = Vec::new();
     let mut track = Vec::new();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Trackpoint" => track.push(read_track_point(reader, b"Trackpoint")?),
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -348,8 +320,8 @@ fn read_track_point<B: BufRead>(
     let mut buf = Vec::new();
     let mut tp = TrackPoint::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Time" => {
                     must_read_text_as_date!(tp.time, reader, buf);
                 }
@@ -377,7 +349,7 @@ fn read_track_point<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -396,8 +368,8 @@ fn read_position<B: BufRead>(
     let mut buf = Vec::new();
     let mut pos = Position::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"LatitudeDegrees" => {
                     must_read_text_as!(pos.latitude_degrees, reader, buf, f64);
                 }
@@ -407,7 +379,7 @@ fn read_position<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -428,28 +400,27 @@ fn read_plan<B: BufRead>(
     let mut plan = Plan::default();
     for ar in plan_element.attributes() {
         if let Ok(a) = ar {
-            match a.key {
+            match a.key.into_inner() {
                 b"Type" => {
-                    plan.training_type =
-                        TrainingType::from_str(&a.unescape_and_decode_value(reader)?)?;
+                    plan.training_type = TrainingType::from_str(&a.unescape_value()?.to_owned())?;
                 }
                 b"IntervalWorkout" => {
-                    plan.interval_workout = bool::from_str(&a.unescape_and_decode_value(reader)?)?;
+                    plan.interval_workout = bool::from_str(&a.unescape_value()?.to_owned())?;
                 }
                 _ => (),
             }
         }
     }
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Name" => {
                     opt_read_text!(plan.name, reader, buf);
                 }
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -468,8 +439,8 @@ fn read_quick_workout<B: BufRead>(
     let mut buf = Vec::new();
     let mut quick_workout = QuickWorkout::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"TotalTimeSeconds" => {
                     must_read_text_as!(quick_workout.total_time_seconds, reader, buf, f64);
                 }
@@ -479,7 +450,7 @@ fn read_quick_workout<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -498,8 +469,8 @@ fn read_training<B: BufRead>(
     let mut buf = Vec::new();
     let mut training = Training::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"QuickWorkoutResults" => {
                     training.quick_workout_results =
                         Some(read_quick_workout(reader, b"QuickWorkoutResults")?);
@@ -510,7 +481,7 @@ fn read_training<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -526,8 +497,8 @@ fn read_device<B: BufRead>(reader: &mut Reader<B>, close_tag: &[u8]) -> Result<D
     let mut buf = Vec::new();
     let mut d = Device::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Name" => {
                     must_read_text!(d.name, reader, buf);
                 }
@@ -543,7 +514,7 @@ fn read_device<B: BufRead>(reader: &mut Reader<B>, close_tag: &[u8]) -> Result<D
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -562,8 +533,8 @@ fn read_application<B: BufRead>(
     let mut buf = Vec::new();
     let mut a = Application::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Name" => {
                     must_read_text!(a.name, reader, buf);
                 }
@@ -577,7 +548,7 @@ fn read_application<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
             }
@@ -595,8 +566,8 @@ fn read_build<B: BufRead>(reader: &mut Reader<B>) -> Result<Build, ReadError> {
     let mut buf = Vec::new();
     let mut build = Build::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Version" => build.version = read_version(reader)?,
                 b"Time" => {
                     opt_read_text!(build.time, reader, buf);
@@ -609,7 +580,7 @@ fn read_build<B: BufRead>(reader: &mut Reader<B>) -> Result<Build, ReadError> {
                 }
                 _ => (),
             },
-            Ok(Event::End(ref e)) => match e.name() {
+            Ok(Event::End(ref e)) => match e.name().into_inner() {
                 b"Build" => break,
                 _ => (),
             },
@@ -625,8 +596,8 @@ fn read_version<B: BufRead>(reader: &mut Reader<B>) -> Result<Version, ReadError
     let mut buf = Vec::new();
     let mut version = Version::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"VersionMajor" => {
                     must_read_text_as!(version.version_major, reader, buf, u16);
                 }
@@ -641,7 +612,7 @@ fn read_version<B: BufRead>(reader: &mut Reader<B>) -> Result<Version, ReadError
                 }
                 _ => (),
             },
-            Ok(Event::End(ref e)) => match e.name() {
+            Ok(Event::End(ref e)) => match e.name().into_inner() {
                 b"Version" => break,
                 _ => (),
             },
@@ -662,18 +633,19 @@ fn read_activity_track_point_extension<B: BufRead>(
     let mut ate = ActivityTrackPointExtension::default();
     for ar in tpx_element.attributes() {
         if let Ok(a) = ar {
-            match a.key {
+            match a.key.into_inner() {
                 b"CadenceSensor" => {
-                    ate.cadence_sensor =
-                        Some(CadenceSensorType::from_str(&a.unescape_and_decode_value(reader)?)?);
+                    ate.cadence_sensor = Some(CadenceSensorType::from_str(
+                        &a.unescape_value()?.to_owned(),
+                    )?);
                 }
                 _ => (),
             }
         }
     }
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"Speed" => {
                     opt_read_text_as!(ate.speed, reader, buf, f64);
                 }
@@ -686,10 +658,10 @@ fn read_activity_track_point_extension<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
-            },
+            }
             Err(e) => return Err(ReadError::XmlReadError(e)),
             _ => (),
         }
@@ -705,8 +677,8 @@ fn read_activity_lap_extension<B: BufRead>(
     let mut buf = Vec::new();
     let mut ate = ActivityLapExtension::default();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => match e.name().into_inner() {
                 b"AvgSpeed" => {
                     opt_read_text_as!(ate.avg_speed, reader, buf, f64);
                 }
@@ -731,10 +703,10 @@ fn read_activity_lap_extension<B: BufRead>(
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
-                if e.name() == close_tag {
+                if e.name().into_inner() == close_tag {
                     break;
                 }
-            },
+            }
             Err(e) => return Err(ReadError::XmlReadError(e)),
             _ => (),
         }
@@ -745,8 +717,8 @@ fn read_activity_lap_extension<B: BufRead>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{FixedOffset, TimeZone};
-    use validator::ValidationErrors;
+    use chrono::{Utc, NaiveDate};
+    use validator::{Validate, ValidationErrors};
 
     use super::*;
 
@@ -827,9 +799,7 @@ mod tests {
             .unwrap();
         assert_eq!(Sport::Running, activity.sport);
         assert_eq!(
-            FixedOffset::east(0)
-                .ymd(2020, 12, 28)
-                .and_hms_milli(13, 36, 16, 453),
+            DateTime::<Utc>::from_utc(NaiveDate::from_ymd_opt(2020, 12, 28).unwrap().and_hms_milli_opt(13, 36, 16, 453).unwrap(), Utc),
             activity.id
         );
         assert_eq!(
@@ -886,7 +856,10 @@ mod tests {
         assert_eq!(TriggerMethod::Distance, lap.trigger_method);
         assert_eq!(true, lap.validate().is_ok());
         assert_eq!(525, lap.track_points.len());
-        assert_eq!(Some(1.9050631258222792), lap.extension.as_ref().unwrap().avg_speed);
+        assert_eq!(
+            Some(1.9050631258222792),
+            lap.extension.as_ref().unwrap().avg_speed
+        );
         assert_eq!(Some(210), lap.extension.as_ref().unwrap().avg_watts);
         assert_eq!(Some(262), lap.extension.as_ref().unwrap().max_watts);
     }
@@ -913,9 +886,7 @@ mod tests {
             .next()
             .unwrap();
         assert_eq!(
-            FixedOffset::east(0)
-                .ymd(2020, 12, 28)
-                .and_hms_milli(13, 36, 17, 453),
+            DateTime::<Utc>::from_utc(NaiveDate::from_ymd_opt(2020, 12, 28).unwrap().and_hms_milli_opt(13, 36, 17, 453).unwrap(), Utc),
             tp.time
         );
         assert_eq!(

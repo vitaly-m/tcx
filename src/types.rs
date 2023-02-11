@@ -1,9 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-use chrono::{Date, FixedOffset, TimeZone};
 use chrono::DateTime;
-use chrono::Utc;
+use chrono::{Utc};
 use regex::Regex;
 use thiserror::Error;
 use validator::Validate;
@@ -28,7 +27,9 @@ impl Display for UnknownEnumValueError {
             UnknownEnumValueError::Intensity(t) => write!(f, "unknown '{}' intensity", t),
             UnknownEnumValueError::TriggerMethod(t) => write!(f, "unknown '{}' trigger method", t),
             UnknownEnumValueError::SensorState(t) => write!(f, "unknown '{}' sensor state", t),
-            UnknownEnumValueError::CadenceSensorType(t) => { write!(f, "unknown '{}' cadence sensor type", t) },
+            UnknownEnumValueError::CadenceSensorType(t) => {
+                write!(f, "unknown '{}' cadence sensor type", t)
+            }
         }
     }
 }
@@ -302,27 +303,9 @@ pub struct TrainingCenterDatabase {
     pub author: Option<SourceType>,
 }
 
-impl TrainingCenterDatabase {
-    fn new() -> Self {
-        Self {
-            folders: None,
-            activity_list: None,
-            workout_list: None,
-            course_list: None,
-            author: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct CourseList {
     pub cources: Option<Vec<Course>>,
-}
-
-impl CourseList {
-    fn new() -> Self {
-        Self { cources: None }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -335,40 +318,14 @@ pub struct Course {
     pub creator: Option<SourceType>,
 }
 
-impl Course {
-    fn new() -> Self {
-        Self {
-            name: None,
-            laps: None,
-            track_points: None,
-            notes: None,
-            course_point: None,
-            creator: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct CoursePoint {
     pub name: Option<String>,
-    pub time: Option<DateTime<FixedOffset>>,
+    pub time: Option<DateTime<Utc>>,
     pub position: Option<Position>,
     pub altitude_meters: Option<f64>,
     pub point_type: Option<CoursePointType>,
     pub notes: Option<String>,
-}
-
-impl CoursePoint {
-    fn new() -> Self {
-        Self {
-            name: None,
-            time: None,
-            position: None,
-            altitude_meters: None,
-            point_type: None,
-            notes: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Validate)]
@@ -386,55 +343,19 @@ pub struct CourseLap {
     pub cadence: Option<u8>,
 }
 
-impl CourseLap {
-    fn new() -> Self {
-        Self {
-            total_time_seconds: None,
-            distance_meters: None,
-            begin_position: None,
-            begin_altitude_meters: None,
-            end_position: None,
-            end_altitude_meters: None,
-            average_heart_rate_bpm: None,
-            maximum_heart_rate_bpm: None,
-            intensity: None,
-            cadence: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct WorkoutList {
     pub workouts: Option<Vec<Workout>>,
-}
-
-impl WorkoutList {
-    fn new() -> Self {
-        Self { workouts: None }
-    }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Workout {
     pub name: Option<String>,
     pub steps: Option<Vec<StepType>>,
-    pub scheduled_on: Option<Date<Utc>>,
+    pub scheduled_on: Option<DateTime<Utc>>,
     pub notes: Option<String>,
     pub creator: Option<SourceType>,
     pub sport: Option<Sport>,
-}
-
-impl Workout {
-    fn new() -> Self {
-        Self {
-            name: None,
-            steps: None,
-            scheduled_on: None,
-            notes: None,
-            creator: None,
-            sport: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -442,16 +363,6 @@ pub struct Repeat {
     pub step_id: Option<u8>,
     pub repetitions: Option<u8>,
     pub children: Option<Vec<StepType>>,
-}
-
-impl Repeat {
-    fn new() -> Self {
-        Self {
-            step_id: None,
-            repetitions: None,
-            children: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -463,31 +374,10 @@ pub struct Step {
     pub target: Option<Target>,
 }
 
-impl Step {
-    fn new() -> Self {
-        Self {
-            step_id: None,
-            name: None,
-            duration: None,
-            intensity: None,
-            target: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Cadence {
     pub low: Option<f64>,
     pub high: Option<f64>,
-}
-
-impl Cadence {
-    fn new() -> Self {
-        Self {
-            low: None,
-            high: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -496,30 +386,11 @@ pub struct CustomHeartRateZone {
     pub high: Option<u8>,
 }
 
-impl CustomHeartRateZone {
-    fn new() -> Self {
-        Self {
-            low: None,
-            high: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct CustomSpeedZone {
     pub view_as: Option<SpeedType>,
     pub low_in_meters_per_second: Option<f64>,
     pub high_in_meters_per_second: Option<f64>,
-}
-
-impl CustomSpeedZone {
-    fn new() -> Self {
-        Self {
-            view_as: None,
-            low_in_meters_per_second: None,
-            high_in_meters_per_second: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Default)]
@@ -530,34 +401,15 @@ pub struct ActivityList {
 
 #[derive(Debug, PartialEq)]
 pub struct MultiSportSession {
-    pub id: Option<DateTime<FixedOffset>>,
+    pub id: Option<DateTime<Utc>>,
     pub sports: Option<Vec<MultiActivity>>,
     pub notes: Option<String>,
-}
-
-impl MultiSportSession {
-    fn new() -> Self {
-        Self {
-            id: None,
-            sports: None,
-            notes: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct MultiActivity {
     pub transition: Option<ActivityLap>,
     pub activity: Option<Activity>,
-}
-
-impl MultiActivity {
-    fn new() -> Self {
-        Self {
-            transition: None,
-            activity: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -567,27 +419,9 @@ pub struct Folders {
     pub courses: Option<Courses>,
 }
 
-impl Folders {
-    fn new() -> Self {
-        Self {
-            history: None,
-            workouts: None,
-            courses: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Courses {
     pub course_folder: Option<CourseFolder>,
-}
-
-impl Courses {
-    fn new() -> Self {
-        Self {
-            course_folder: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -598,17 +432,6 @@ pub struct CourseFolder {
     pub name: Option<String>,
 }
 
-impl CourseFolder {
-    fn new() -> Self {
-        Self {
-            folders: None,
-            course_name_refs: None,
-            notes: None,
-            name: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Workouts {
     pub running: Option<WorkoutFolder>,
@@ -616,31 +439,11 @@ pub struct Workouts {
     pub other: Option<WorkoutFolder>,
 }
 
-impl Workouts {
-    fn new() -> Self {
-        Self {
-            running: None,
-            biking: None,
-            other: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct WorkoutFolder {
     pub folders: Option<Vec<WorkoutFolder>>,
     pub workout_name_refs: Option<Vec<String>>,
     pub name: Option<String>,
-}
-
-impl WorkoutFolder {
-    fn new() -> Self {
-        Self {
-            folders: None,
-            workout_name_refs: None,
-            name: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -651,78 +454,34 @@ pub struct History {
     pub multi_sport: Option<MultiSportFolder>,
 }
 
-impl History {
-    fn new() -> Self {
-        Self {
-            running: None,
-            biking: None,
-            other: None,
-            multi_sport: None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct MultiSportFolder {
     pub folders: Option<Vec<MultiSportFolder>>,
-    pub multisport_activity_refs: Option<Vec<DateTime<FixedOffset>>>,
+    pub multisport_activity_refs: Option<Vec<DateTime<Utc>>>,
     pub weeks: Option<Vec<Week>>,
     pub notes: Option<String>,
     pub name: Option<String>,
-}
-
-impl MultiSportFolder {
-    fn new() -> Self {
-        Self {
-            folders: None,
-            multisport_activity_refs: None,
-            weeks: None,
-            notes: None,
-            name: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct HistoryFolder {
     pub folders: Option<Vec<HistoryFolder>>,
-    pub activity_refs: Option<Vec<DateTime<FixedOffset>>>,
+    pub activity_refs: Option<Vec<DateTime<Utc>>>,
     pub weeks: Option<Vec<Week>>,
     pub notes: Option<String>,
     pub name: Option<String>,
-}
-
-impl HistoryFolder {
-    fn new() -> Self {
-        Self {
-            folders: None,
-            activity_refs: None,
-            weeks: None,
-            notes: None,
-            name: None,
-        }
-    }
 }
 
 /// The week is written out only if the notes are present.
 #[derive(Debug, PartialEq)]
 pub struct Week {
     pub notes: Option<String>,
-    pub start_day: Option<Date<Utc>>,
-}
-
-impl Week {
-    fn new() -> Self {
-        Self {
-            notes: None,
-            start_day: None,
-        }
-    }
+    pub start_day: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Activity {
-    pub id: DateTime<FixedOffset>,
+    pub id: DateTime<Utc>,
     pub laps: Vec<ActivityLap>,
     pub notes: Option<String>,
     pub training: Option<Training>,
@@ -733,8 +492,7 @@ pub struct Activity {
 impl Default for Activity {
     fn default() -> Self {
         Self {
-            id: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
-
+            id: Utc::now(),
             laps: Vec::default(),
             notes: None,
             training: None,
@@ -782,7 +540,7 @@ pub struct ActivityLap {
     pub trigger_method: TriggerMethod,
     pub track_points: Vec<TrackPoint>,
     pub notes: Option<String>,
-    pub start_time: DateTime<FixedOffset>,
+    pub start_time: DateTime<Utc>,
     pub extension: Option<ActivityLapExtension>,
 }
 
@@ -800,7 +558,7 @@ impl Default for ActivityLap {
             trigger_method: TriggerMethod::Manual,
             track_points: Vec::default(),
             notes: None,
-            start_time: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
+            start_time: Utc::now(),
             extension: None,
         }
     }
@@ -808,7 +566,7 @@ impl Default for ActivityLap {
 
 #[derive(Debug, PartialEq, Validate)]
 pub struct TrackPoint {
-    pub time: DateTime<FixedOffset>,
+    pub time: DateTime<Utc>,
     pub position: Option<Position>,
     pub altitude_meters: Option<f64>,
     pub distance_meters: Option<f64>,
@@ -822,7 +580,7 @@ pub struct TrackPoint {
 impl Default for TrackPoint {
     fn default() -> Self {
         Self {
-            time: FixedOffset::east(10800).ymd(1987, 08, 21).and_hms(14, 0, 0),
+            time: Utc::now(),
             position: None,
             altitude_meters: None,
             distance_meters: None,

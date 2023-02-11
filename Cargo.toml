@@ -1,5 +1,5 @@
 [package]
-name = "tcx"
+name = "quick_tcx"
 version = "0.1.0"
 authors = ["Vitaly Merenkov <vmrnkv@gmail.com>"]
 edition = "2018"
@@ -19,3 +19,10 @@ validator = { version = "0.16", features = ["derive"] }
 lazy_static = "1.4.0"
 regex = "1"
 thiserror = "1.0"
+
+[dev-dependencies]
+criterion = "0.4.0"
+
+[[bench]]
+name = "read_benchmark"
+harness = false

@@ -3,6 +3,12 @@ name = "tcx"
 version = "0.1.0"
 authors = ["Vitaly Merenkov <vmrnkv@gmail.com>"]
 edition = "2018"
+description = "The rust library to interact with XML files in TCX format."
+homepage = "https://github.com/vitaly-m/tcx"
+repository = "https://github.com/vitaly-m/tcx"
+readme = "README.md"
+keywords = ["TCX", "training", "activity"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

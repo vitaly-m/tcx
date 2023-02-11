@@ -13,7 +13,7 @@ mod types;
 
 /// Read the content of TCX xml data into TrainingCenterDatabase structure
 /// ```
-/// let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+/// let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
 /// assert_eq!(true, tcx::read(tcx_bytes).is_ok());
 /// ```
 pub fn read<B: BufRead>(buf_reader: B) -> Result<TrainingCenterDatabase, ReadError> {

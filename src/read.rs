@@ -724,7 +724,7 @@ mod tests {
 
     #[test]
     fn read_device_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let device = read_device(&mut reader, b"Creator").unwrap();
         assert_eq!(
@@ -745,7 +745,7 @@ mod tests {
 
     #[test]
     fn read_training_center_db_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let tc = read_training_center(&mut reader).unwrap();
         assert_eq!(
@@ -771,7 +771,7 @@ mod tests {
 
     #[test]
     fn read_activities_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let tc = read_training_center(&mut reader).unwrap();
         assert_eq!(1, tc.activity_list.as_ref().unwrap().activities.len());
@@ -787,7 +787,7 @@ mod tests {
 
     #[test]
     fn read_activity_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let tc = read_training_center(&mut reader).unwrap();
         let activity = tc
@@ -833,7 +833,7 @@ mod tests {
 
     #[test]
     fn read_activity_lap_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let tc = read_training_center(&mut reader).unwrap();
         let activity = tc
@@ -866,7 +866,7 @@ mod tests {
 
     #[test]
     fn read_track_point_test() {
-        let tcx_bytes: &[u8] = include_bytes!("../test_resources/+__2020-12-28_16-36-16.TCX.xml");
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/test.tcx.xml");
         let mut reader = Reader::from_reader(tcx_bytes);
         let tc = read_training_center(&mut reader).unwrap();
         let activity = tc

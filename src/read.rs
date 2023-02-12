@@ -265,7 +265,10 @@ fn read_activity_lap<B: BufRead>(
                     must_read_text_as!(a_lap.trigger_method, reader, buf, TriggerMethod);
                 }
                 b"Track" => {
-                    a_lap.track_points = read_track(reader, b"Track")?;
+                    let tps = read_track(reader, b"Track")?;
+                    for tp in tps {
+                        a_lap.track_points.push(tp); 
+                    }
                 }
                 b"Notes" => {
                     opt_read_text!(a_lap.notes, reader, buf);
@@ -843,6 +846,7 @@ mod tests {
             .into_iter()
             .next()
             .unwrap();
+        assert_eq!(10, activity.laps.len());
         let lap = activity.laps.into_iter().next().unwrap();
         assert_eq!(1000.0, f64::from_str("1000.0").unwrap());
         assert_eq!(525.0, lap.total_time_seconds);
@@ -878,12 +882,9 @@ mod tests {
             .unwrap();
         let tp = activity
             .laps
-            .into_iter()
-            .next()
+            .get(0)
             .unwrap()
-            .track_points
-            .into_iter()
-            .next()
+            .track_points.get(0)
             .unwrap();
         assert_eq!(
             DateTime::<Utc>::from_utc(NaiveDate::from_ymd_opt(2020, 12, 28).unwrap().and_hms_milli_opt(13, 36, 17, 453).unwrap(), Utc),
@@ -901,7 +902,12 @@ mod tests {
         assert_eq!(Some(68), tp.heart_rate_bpm);
         assert_eq!(Some(0), tp.cadence);
         assert_eq!(Some(SensorState::Present), tp.sensor_state);
-        assert_eq!(Some(98), tp.extension.unwrap().watts);
+        assert_eq!(Some(98), tp.extension.as_ref().unwrap().watts);
+        let mut tp_count = 0;
+        for l in &activity.laps {
+            tp_count += l.track_points.len();
+        }
+        assert_eq!(4400, tp_count)
     }
 
     #[test]

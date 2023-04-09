@@ -1,6 +1,6 @@
 [package]
 name = "quick_tcx"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Vitaly Merenkov <vmrnkv@gmail.com>"]
 edition = "2018"
 description = "The rust library to interact with XML files in TCX format."
@@ -13,7 +13,7 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quick-xml = "0.27"
+quick-xml = "0.28"
 chrono = "0.4.23"
 validator = { version = "0.16", features = ["derive"] }
 lazy_static = "1.4.0"

@@ -85,7 +85,8 @@ macro_rules! opt_read_text {
 macro_rules! must_read_text_as_date {
     ($to: tt. $attr:tt, $r: tt, $b: tt) => {
         if let Ok(Event::Text(ref t)) = $r.read_event_into(&mut $b) {
-            $to.$attr = chrono::DateTime::parse_from_rfc3339(t.unescape()?.into_owned().as_str())?.into();
+            $to.$attr =
+                chrono::DateTime::parse_from_rfc3339(t.unescape()?.into_owned().as_str())?.into();
         }
     };
 }
@@ -150,7 +151,7 @@ fn read_activity_list<B: BufRead>(
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => match e.name().into_inner() {
-                b"Activity" => al.activities.push(read_activity(reader, b"Activity")?),
+                b"Activity" => al.activities.push(read_activity(reader, b"Activity", e)?),
                 _ => (),
             },
             Ok(Event::End(ref e)) => {
@@ -169,9 +170,18 @@ fn read_activity_list<B: BufRead>(
 fn read_activity<B: BufRead>(
     reader: &mut Reader<B>,
     close_tag: &[u8],
+    activity_element: &BytesStart,
 ) -> Result<Activity, ReadError> {
     let mut buf = Vec::new();
     let mut activity = Activity::default();
+    for ar in activity_element.attributes() {
+        if let Ok(a) = ar {
+            match a.key.into_inner() {
+                b"Sport" => activity.sport = Sport::from_str(&a.unescape_value()?.to_owned())?,
+                _ => (),
+            }
+        }
+    }
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => match e.name().into_inner() {
@@ -197,9 +207,6 @@ fn read_activity<B: BufRead>(
                         activity.creator =
                             Some(SourceType::Device(read_device(reader, b"Creator")?));
                     }
-                }
-                b"Sport" => {
-                    must_read_text_as!(activity.sport, reader, buf, Sport);
                 }
                 _ => (),
             },
@@ -267,7 +274,7 @@ fn read_activity_lap<B: BufRead>(
                 b"Track" => {
                     let tps = read_track(reader, b"Track")?;
                     for tp in tps {
-                        a_lap.track_points.push(tp); 
+                        a_lap.track_points.push(tp);
                     }
                 }
                 b"Notes" => {
@@ -720,7 +727,7 @@ fn read_activity_lap_extension<B: BufRead>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Utc, NaiveDate};
+    use chrono::{NaiveDate, Utc};
     use validator::{Validate, ValidationErrors};
 
     use super::*;
@@ -802,7 +809,13 @@ mod tests {
             .unwrap();
         assert_eq!(Sport::Running, activity.sport);
         assert_eq!(
-            DateTime::<Utc>::from_utc(NaiveDate::from_ymd_opt(2020, 12, 28).unwrap().and_hms_milli_opt(13, 36, 16, 453).unwrap(), Utc),
+            DateTime::<Utc>::from_utc(
+                NaiveDate::from_ymd_opt(2020, 12, 28)
+                    .unwrap()
+                    .and_hms_milli_opt(13, 36, 16, 453)
+                    .unwrap(),
+                Utc
+            ),
             activity.id
         );
         assert_eq!(
@@ -832,6 +845,21 @@ mod tests {
             activity.training.unwrap()
         );
         assert_eq!(10, activity.laps.len());
+    }
+
+    #[test]
+    fn read_biking_activity_test() {
+        let tcx_bytes: &[u8] = include_bytes!("../test_resources/biking.tcx.xml");
+        let mut reader = Reader::from_reader(tcx_bytes);
+        let tc = read_training_center(&mut reader).unwrap();
+        let activity = tc
+            .activity_list
+            .unwrap()
+            .activities
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(Sport::Biking, activity.sport);
     }
 
     #[test]
@@ -880,14 +908,15 @@ mod tests {
             .into_iter()
             .next()
             .unwrap();
-        let tp = activity
-            .laps
-            .get(0)
-            .unwrap()
-            .track_points.get(0)
-            .unwrap();
+        let tp = activity.laps.get(0).unwrap().track_points.get(0).unwrap();
         assert_eq!(
-            DateTime::<Utc>::from_utc(NaiveDate::from_ymd_opt(2020, 12, 28).unwrap().and_hms_milli_opt(13, 36, 17, 453).unwrap(), Utc),
+            DateTime::<Utc>::from_utc(
+                NaiveDate::from_ymd_opt(2020, 12, 28)
+                    .unwrap()
+                    .and_hms_milli_opt(13, 36, 17, 453)
+                    .unwrap(),
+                Utc
+            ),
             tp.time
         );
         assert_eq!(
